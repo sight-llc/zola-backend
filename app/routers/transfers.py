@@ -1,5 +1,6 @@
 import uuid
 import random
+import logging
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, field_validator
 from app.core.security import get_current_user
@@ -7,6 +8,8 @@ from app.models.user import User
 from app.services.meroe_service import request_payout
 
 router = APIRouter()
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -103,13 +106,54 @@ async def send_money(body: SendMoneyRequest, current_user: User = Depends(get_cu
 
     idempotency_key = f"ZOLA-{uuid.uuid4().hex[:16].upper()}"
 
-    result = await request_payout(
-        meroe_customer_id=current_user.meroe_customer_id,
-        bank_code=body.bank_code,
-        account_number=body.account_number,
-        account_name=body.account_name,
-        amount_kobo=body.amount,
-        narration=body.narration,
-        idempotency_key=idempotency_key,
-    )
-    return result
+    try:
+        result = await request_payout(
+            meroe_customer_id=current_user.meroe_customer_id,
+            bank_code=body.bank_code,
+            account_number=body.account_number,
+            account_name=body.account_name,
+            amount_kobo=body.amount,
+            narration=body.narration,
+            idempotency_key=idempotency_key,
+        )
+        logger.info(
+            "Successfully initiated payout for Zola user %s (Meroe customer %s). "
+            "Amount: %d kobo, Bank: %s, Account: %s",
+            current_user.id,
+            current_user.meroe_customer_id,
+            body.amount,
+            body.bank_code,
+            body.account_number,
+        )
+        return result
+    except HTTPException as exc:
+        # Log the Meroe error details
+        logger.error(
+            "Meroe payout failed for Zola user %s (Meroe customer %s). "
+            "HTTPException: status_code=%s, detail=%s. "
+            "Amount: %d kobo, Bank: %s, Account: %s",
+            current_user.id,
+            current_user.meroe_customer_id,
+            exc.status_code,
+            exc.detail,
+            body.amount,
+            body.bank_code,
+            body.account_number,
+        )
+        raise
+    except Exception as exc:
+        # Log unexpected errors
+        logger.exception(
+            "Unexpected error during payout for Zola user %s (Meroe customer %s): %s. "
+            "Amount: %d kobo, Bank: %s, Account: %s",
+            current_user.id,
+            current_user.meroe_customer_id,
+            str(exc),
+            body.amount,
+            body.bank_code,
+            body.account_number,
+        )
+        raise HTTPException(
+            status_code=503,
+            detail="Unable to process transfer. Please try again later.",
+        )

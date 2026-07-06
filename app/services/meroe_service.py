@@ -27,11 +27,27 @@ async def provision_meroe_customer(user) -> str | None:
     try:
         data = await meroe_post("/v1/customers", payload)
         customer_id = data.get("id")
-        logger.info("Provisioned Meroe customer %s for Zola user %s", customer_id, user.id)
+        logger.info(
+            "Successfully provisioned Meroe customer for Zola user %s (email: %s). "
+            "Meroe customer ID: %s",
+            user.id,
+            user.email,
+            customer_id,
+        )
         return customer_id
     except Exception as exc:
+        # Log the full error details for debugging
+        logger.error(
+            "Meroe customer provisioning failed for Zola user %s (email: %s). "
+            "Error: %s. Payload: externalRef=%s, fullName=%s, email=%s",
+            user.id,
+            user.email,
+            str(exc),
+            payload.get("externalRef"),
+            payload.get("fullName"),
+            payload.get("email"),
+        )
         # In a demo context we log and continue — user can still log in
-        logger.warning("Meroe provisioning failed for %s: %s", user.email, exc)
         return None
 
 

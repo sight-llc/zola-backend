@@ -1,7 +1,8 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+import hashlib
 import jwt
-from passlib.context import CryptContext
+import bcrypt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,16 +13,29 @@ from app.core.database import get_db
 from app.models.user import User
 
 settings = get_settings()
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 bearer_scheme = HTTPBearer()
 
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    """
+    Hash password with SHA-256 pre-hashing to handle passwords > 72 bytes.
+    bcrypt has a 72-byte limit, so we pre-hash to allow longer passwords securely.
+    """
+    # Pre-hash with SHA-256 to handle long passwords
+    sha256_hash = hashlib.sha256(password.encode('utf-8')).hexdigest()
+    # bcrypt expects bytes, returns bytes - decode to string for storage
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(sha256_hash.encode('utf-8'), salt)
+    return hashed.decode('utf-8')
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    """
+    Verify password against hash.
+    Applies the same SHA-256 pre-hash before verification.
+    """
+    sha256_hash = hashlib.sha256(plain.encode('utf-8')).hexdigest()
+    return bcrypt.checkpw(sha256_hash.encode('utf-8'), hashed.encode('utf-8'))
 
 
 def create_access_token(subject: str, extra: dict = None) -> str:

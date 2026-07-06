@@ -21,7 +21,7 @@ def get_meroe_client() -> httpx.AsyncClient:
         _client = httpx.AsyncClient(
             base_url=settings.meroe_base_url,
             headers={
-                "X-API-Key": settings.meroe_api_key,
+                "Authorization": f"Bearer {settings.meroe_api_key}",
                 "Content-Type": "application/json",
             },
             timeout=30.0,

@@ -6,7 +6,7 @@ class RegisterRequest(BaseModel):
     full_name: str
     email: EmailStr
     password: str
-    phone: str | None = None
+    phone: str 
 
     @field_validator("full_name")
     @classmethod

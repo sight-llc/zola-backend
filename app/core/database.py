@@ -5,15 +5,25 @@ import uuid
 
 settings = get_settings()
 
+from sqlalchemy.pool import NullPool
+
 engine = create_async_engine(
     settings.database_url,
-    echo=False,
-    pool_pre_ping=True,
+    poolclass=NullPool,
     connect_args={
         "statement_cache_size": 0,
-        "prepared_statement_name_func": lambda: f"__asyncpg_{uuid.uuid4()}__",
     },
 )
+
+# engine = create_async_engine(
+#     settings.database_url,
+#     echo=False,
+#     pool_pre_ping=True,
+#     connect_args={
+#         "statement_cache_size": 0,
+#         "prepared_statement_name_func": lambda: f"__asyncpg_{uuid.uuid4()}__",
+#     },
+# )
 AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 

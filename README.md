@@ -471,7 +471,7 @@ psql -U postgres -l | grep zola
 
 - **[Zola Frontend](../zola-frontend/README.md)** — React frontend application
 - **[Zola (Root)](../README.md)** — Main Zola project documentation
-- **[Meroe](../../nombadva/README.md)** — Banking infrastructure (formerly NombaVault)
+- **[Meroe](../../../nombadva/README.md)** — Banking infrastructure (formerly NombaVault)
 
 ---
 

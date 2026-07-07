@@ -1,11 +1,12 @@
 import uuid
-import random
 import logging
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, field_validator
-from app.core.security import get_current_user
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.core.security import get_current_user, verify_pin
+from app.core.database import get_db
 from app.models.user import User
-from app.services.meroe_service import request_payout
+from app.services.meroe_service import request_payout, lookup_bank_account, get_banks
 
 router = APIRouter()
 
@@ -13,39 +14,16 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
-# Mock bank list (will be replaced with Meroe lookup endpoint when ready)
+# Bank endpoints - now using Meroe (Nomba DVA) instead of mock data
 # ---------------------------------------------------------------------------
-
-NG_BANKS = [
-    {"code": "058", "name": "GTBank"},
-    {"code": "011", "name": "First Bank"},
-    {"code": "044", "name": "Access Bank"},
-    {"code": "057", "name": "Zenith Bank"},
-    {"code": "033", "name": "UBA"},
-    {"code": "50211", "name": "Kuda"},
-    {"code": "999992", "name": "Opay"},
-    {"code": "50515", "name": "Moniepoint"},
-    {"code": "232", "name": "Sterling Bank"},
-    {"code": "035", "name": "Wema Bank"},
-    {"code": "070", "name": "Fidelity Bank"},
-    {"code": "214", "name": "FCMB"},
-    {"code": "032", "name": "Union Bank"},
-    {"code": "221", "name": "Stanbic IBTC"},
-]
-
-MOCK_NAMES = [
-    "Emeka Okonkwo", "Aisha Bello", "Oluwaseun Adeyemi",
-    "Chinaza Uche", "Ibrahim Musa", "Ngozi Anyanwu", "Tobi Ogundipe",
-]
-
 
 @router.get("/banks")
 async def list_banks(_: User = Depends(get_current_user)):
     """
-    Returns supported Nigerian banks.
-    TODO: swap with Meroe bank-list endpoint when available.
+    Returns supported Nigerian banks from Meroe.
+    Response format: [{ bankCode, bankName, nipCode, logo }]
     """
-    return {"banks": NG_BANKS}
+    return await get_banks()
 
 
 class ResolveRequest(BaseModel):
@@ -63,20 +41,10 @@ class ResolveRequest(BaseModel):
 @router.post("/resolve")
 async def resolve_account(body: ResolveRequest, _: User = Depends(get_current_user)):
     """
-    Resolves a bank account name.
-    TODO: swap with Meroe account-lookup endpoint when available.
+    Resolves a bank account name via Meroe's bank lookup endpoint.
+    Response format: { accountNumber, accountName }
     """
-    bank = next((b for b in NG_BANKS if b["code"] == body.bank_code), None)
-    if not bank:
-        raise HTTPException(status_code=400, detail="Unknown bank code")
-
-    # Mock: derive a deterministic name from the last digit
-    idx = int(body.account_number[-1]) % len(MOCK_NAMES)
-    return {
-        "accountName": MOCK_NAMES[idx],
-        "bankName": bank["name"],
-        "accountNumber": body.account_number,
-    }
+    return await lookup_bank_account(body.account_number, body.bank_code)
 
 
 class SendMoneyRequest(BaseModel):
@@ -85,6 +53,7 @@ class SendMoneyRequest(BaseModel):
     account_name: str
     amount: int  # kobo (smallest unit)
     narration: str = "Transfer"
+    pin: str  # 4-digit transaction PIN
 
     @field_validator("amount")
     @classmethod
@@ -93,16 +62,32 @@ class SendMoneyRequest(BaseModel):
             raise ValueError("Amount must be positive")
         return v
 
+    @field_validator("pin")
+    @classmethod
+    def validate_pin(cls, v: str) -> str:
+        if not v.isdigit() or len(v) != 4:
+            raise ValueError("PIN must be exactly 4 digits")
+        return v
+
 
 @router.post("/send")
-async def send_money(body: SendMoneyRequest, current_user: User = Depends(get_current_user)):
+async def send_money(
+    body: SendMoneyRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
     """
     Initiates a payout via Meroe BaaS infrastructure.
-    Meroe handles debit, ledgering, and Nomba disbursement.
-    Bank lookup/resolve is still mocked (endpoint pending).
+    Requires 4-digit transaction PIN for security.
     """
     if not current_user.meroe_customer_id:
         raise HTTPException(status_code=503, detail="Customer not provisioned on Meroe yet")
+
+    # Verify transaction PIN
+    if not current_user.pin_set:
+        raise HTTPException(status_code=403, detail="Transaction PIN not set. Please set your PIN first.")
+    if not verify_pin(body.pin, current_user.transaction_pin_hash):
+        raise HTTPException(status_code=401, detail="Invalid transaction PIN")
 
     idempotency_key = f"ZOLA-{uuid.uuid4().hex[:16].upper()}"
 

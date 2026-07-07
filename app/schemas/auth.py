@@ -49,6 +49,7 @@ class UserOut(BaseModel):
     kyc_tier: int
     bvn_verified: bool
     id_verified: bool
+    pin_set: bool
 
     model_config = {"from_attributes": True}
 

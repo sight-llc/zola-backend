@@ -38,6 +38,27 @@ def verify_password(plain: str, hashed: str) -> bool:
     return bcrypt.checkpw(sha256_hash.encode('utf-8'), hashed.encode('utf-8'))
 
 
+def hash_pin(pin: str) -> str:
+    """
+    Hash a 4-digit transaction PIN.
+    Uses the same SHA-256 + bcrypt approach as passwords for consistency.
+    """
+    sha256_hash = hashlib.sha256(pin.encode('utf-8')).hexdigest()
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(sha256_hash.encode('utf-8'), salt)
+    return hashed.decode('utf-8')
+
+
+def verify_pin(plain_pin: str, hashed_pin: str) -> bool:
+    """
+    Verify a 4-digit transaction PIN against its hash.
+    """
+    if not hashed_pin:
+        return False
+    sha256_hash = hashlib.sha256(plain_pin.encode('utf-8')).hexdigest()
+    return bcrypt.checkpw(sha256_hash.encode('utf-8'), hashed_pin.encode('utf-8'))
+
+
 def create_access_token(subject: str, extra: dict = None) -> str:
     payload = {
         "sub": subject,

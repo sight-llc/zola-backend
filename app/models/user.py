@@ -22,6 +22,10 @@ class User(Base):
     bvn_verified: Mapped[bool] = mapped_column(Boolean, default=False)
     id_verified: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    # Transaction PIN for transfer security
+    transaction_pin_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    pin_set: Mapped[bool] = mapped_column(Boolean, default=False)
+
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)

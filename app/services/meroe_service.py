@@ -85,3 +85,57 @@ async def request_payout(
         "merchantTxRef": idempotency_key,
     }
     return await meroe_post("/v1/transfers", payload)
+
+
+async def lookup_bank_account(account_number: str, bank_code: str) -> dict:
+    """
+    Look up a bank account name via Meroe's bank lookup endpoint.
+    Calls POST /v1/transfers/bank/lookup.
+    Returns { accountNumber, accountName } (extracted from response data).
+    """
+    payload = {
+        "accountNumber": account_number,
+        "bankCode": bank_code,
+    }
+    response = await meroe_post("/v1/transfers/bank/lookup", payload)
+    # Handle both list and dict responses
+    if isinstance(response, list):
+        data = response[0] if response else {}
+    elif isinstance(response, dict):
+        data = response.get("data", response)
+    else:
+        data = {}
+    # Map to the expected format (nombadva uses accountNumber, accountName)
+    return {
+        "accountNumber": data.get("accountNumber") or data.get("account_number"),
+        "accountName": data.get("accountName") or data.get("account_name"),
+    }
+
+
+async def get_banks() -> list[dict]:
+    """
+    Fetch the list of supported banks from Meroe.
+    Calls GET /v1/transfers/banks.
+    Returns list of { bankCode, bankName, nipCode, logo } (mapped from response).
+    """
+    response = await meroe_get("/v1/transfers/banks")
+    # Handle both list and dict responses
+    if isinstance(response, list):
+        data = response
+    elif isinstance(response, dict):
+        data = response.get("data", response)
+    else:
+        return []
+    
+    if isinstance(data, list):
+        # Map from Meroe's format to nombadva's format
+        return [
+            {
+                "bankCode": b.get("code") or b.get("bankCode"),
+                "bankName": b.get("name") or b.get("bankName"),
+                "nipCode": b.get("nipCode"),
+                "logo": b.get("logo", ""),
+            }
+            for b in data
+        ]
+    return []

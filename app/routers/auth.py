@@ -4,10 +4,11 @@ from sqlalchemy import select
 import logging
 
 from app.core.database import get_db
-from app.core.security import hash_password, verify_password, create_access_token, get_current_user
+from app.core.security import hash_password, verify_password, create_access_token, get_current_user, hash_pin
 from app.models.user import User
 from app.schemas.auth import RegisterRequest, LoginRequest, AuthResponse, UserOut
 from app.services.meroe_service import provision_meroe_customer
+from pydantic import BaseModel, field_validator
 
 router = APIRouter()
 
@@ -98,3 +99,34 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
 @router.get("/me", response_model=UserOut)
 async def me(current_user: User = Depends(get_current_user)):
     return UserOut.model_validate(current_user)
+
+
+class SetPinRequest(BaseModel):
+    pin: str
+
+    @field_validator("pin")
+    @classmethod
+    def validate_pin(cls, v: str) -> str:
+        if not v.isdigit() or len(v) != 4:
+            raise ValueError("PIN must be exactly 4 digits")
+        return v
+
+
+@router.post("/pin")
+async def set_pin(
+    body: SetPinRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Set or update the 4-digit transaction PIN for the authenticated user.
+    This PIN is required for all transfer operations.
+    """
+    if current_user.pin_set:
+        raise HTTPException(status_code=409, detail="PIN already set. Use a different endpoint to change it.")
+
+    current_user.transaction_pin_hash = hash_pin(body.pin)
+    current_user.pin_set = True
+    await db.commit()
+
+    return {"success": True, "message": "Transaction PIN set successfully"}

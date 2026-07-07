@@ -6,6 +6,13 @@ A thin, focused FastAPI + PostgreSQL backend that orchestrates user authenticati
 
 ---
 
+## Live Demo
+
+- **Live Backend:** https://zola-backend.fastapicloud.dev
+- **API Documentation:** https://zola-backend.fastapicloud.dev/docs
+
+---
+
 ## What is Zola Backend?
 
 Zola Backend is the middle layer between the Zola Frontend and Meroe banking infrastructure. It provides:

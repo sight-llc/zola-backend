@@ -2,10 +2,12 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sess
 from sqlalchemy.orm import DeclarativeBase
 from app.core.config import get_settings
 import uuid
+from sqlalchemy.pool import NullPool
+
 
 settings = get_settings()
 
-from sqlalchemy.pool import NullPool
+
 
 engine = create_async_engine(
     settings.database_url,

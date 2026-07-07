@@ -470,7 +470,6 @@ psql -U postgres -l | grep zola
 ## Related Projects
 
 - **[Zola Frontend](../../../zola-frontend)** — React frontend application
-- **[Zola (Root)](../README.md)** — Main Zola project documentation
 - **[Meroe](../../../nombadva)** — Banking infrastructure (formerly NombaVault)
 
 ---

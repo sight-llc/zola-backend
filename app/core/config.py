@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     # Meroe (NombaVault) — the BaaS infrastructure
     meroe_base_url: str = "http://localhost:8080"
     meroe_api_key: str = ""  # set via env: MEROE_API_KEY
+    meroe_webhook_secret: str = ""  # whsec_... from webhook subscription creation
 
     # Gmail (notification emails)
     gmail_sender: str = ""

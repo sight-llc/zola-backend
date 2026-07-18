@@ -1,15 +1,18 @@
 import logging
-from fastapi import APIRouter, BackgroundTasks, Request, Depends
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from app.core.config import get_settings
 from app.core.database import get_db
 from app.models.user import User
 from app.models.notification import Notification
 from app.models.transfer_ref import TransferRef
 from app.utils.email import send_notification_email
+from app.utils.webhook_verify import verify_webhook_signature
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+settings = get_settings()
 
 KNOWN_EVENTS = {"PAYMENT.RECEIVED", "TRANSFER.SUCCESS", "TRANSFER.FAILED", "webhook.test"}
 
@@ -20,6 +23,9 @@ async def meroe_webhook(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
+    if not await verify_webhook_signature(request, settings.meroe_webhook_secret):
+        raise HTTPException(status_code=401, detail="Invalid webhook signature")
+
     body = await request.json()
     logger.info(f"Meroe webhook received: {body}")
 

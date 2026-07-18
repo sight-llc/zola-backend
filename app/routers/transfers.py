@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import get_current_user, verify_pin
 from app.core.database import get_db
 from app.models.user import User
+from app.models.transfer_ref import TransferRef
 from app.services.meroe_service import request_payout, lookup_bank_account, get_banks
 
 router = APIRouter()
@@ -110,6 +111,12 @@ async def send_money(
             body.bank_code,
             body.account_number,
         )
+        transfer_ref = TransferRef(
+            user_id=current_user.id,
+            merchant_tx_ref=idempotency_key,
+        )
+        db.add(transfer_ref)
+        await db.commit()
         return result
     except HTTPException as exc:
         # Log the Meroe error details

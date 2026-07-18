@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import logging
@@ -8,6 +8,7 @@ from app.core.security import hash_password, verify_password, create_access_toke
 from app.models.user import User
 from app.schemas.auth import RegisterRequest, LoginRequest, AuthResponse, UserOut
 from app.services.meroe_service import provision_meroe_customer
+from app.utils.email import send_welcome_email
 from pydantic import BaseModel, field_validator
 
 router = APIRouter()
@@ -16,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 @router.post("/register", response_model=AuthResponse, status_code=201)
-async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
+async def register(body: RegisterRequest, background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_db)):
     # Check duplicate email
     result = await db.execute(select(User).where(User.email == body.email))
     if result.scalar_one_or_none():
@@ -32,10 +33,11 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
     await db.flush()  # get user.id before provisioning
 
     # Provision a Meroe customer + virtual account
+    nuban = None
+    bank_name = None
     try:
-        meroe_id = await provision_meroe_customer(user)
-        if meroe_id is None:
-            # Meroe provisioning failed - rollback user creation
+        prov = await provision_meroe_customer(user)
+        if prov is None:
             logger.error(
                 "Meroe customer provisioning failed for user %s (email: %s). "
                 "Rolling back user registration.",
@@ -47,19 +49,20 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
                 status_code=503,
                 detail="Unable to provision customer account. Please try again later.",
             )
-        user.meroe_customer_id = meroe_id
+        user.meroe_customer_id = prov.customer_id
+        nuban = prov.nuban
+        bank_name = prov.bank_name
         logger.info(
-            "Successfully provisioned Meroe customer %s for Zola user %s (email: %s)",
-            meroe_id,
+            "Successfully provisioned Meroe customer %s for Zola user %s (email: %s). NUBAN: %s",
+            prov.customer_id,
             user.id,
             user.email,
+            nuban,
         )
     except HTTPException:
-        # Re-raise HTTPException from Meroe client (already has proper error)
         await db.rollback()
         raise
     except Exception as exc:
-        # Catch any other unexpected errors
         logger.exception(
             "Unexpected error during Meroe provisioning for user %s (email: %s): %s",
             user.id,
@@ -74,6 +77,15 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
 
     await db.commit()
     await db.refresh(user)
+
+    if nuban:
+        background_tasks.add_task(
+            send_welcome_email,
+            to_email=user.email,
+            to_name=user.full_name,
+            nuban=nuban,
+            bank_name=bank_name or "Nomba",
+        )
 
     token = create_access_token(user.id)
     return AuthResponse(access_token=token, user=UserOut.model_validate(user))

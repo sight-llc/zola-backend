@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 
 from app.core.database import engine, Base
 from app.routers import auth, wallet, transfers, kyc
+from app.routers import webhooks, notifications
 
 
 @asynccontextmanager
@@ -33,6 +34,8 @@ app.include_router(auth.router, prefix="/v1/auth", tags=["Auth"])
 app.include_router(wallet.router, prefix="/v1/wallet", tags=["Wallet"])
 app.include_router(transfers.router, prefix="/v1/transfers", tags=["Transfers"])
 app.include_router(kyc.router, prefix="/v1/kyc", tags=["KYC"])
+app.include_router(webhooks.router, prefix="/v1/webhooks", tags=["Webhooks"])
+app.include_router(notifications.router, prefix="/v1/notifications", tags=["Notifications"])
 
 
 @app.get("/health", tags=["Health"])

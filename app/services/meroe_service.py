@@ -5,15 +5,23 @@ helpers used by the wallet/transfer routers.
 """
 import uuid
 import logging
+from dataclasses import dataclass
 from app.core.meroe_client import meroe_post, meroe_get
 
 logger = logging.getLogger(__name__)
 
 
-async def provision_meroe_customer(user) -> str | None:
+@dataclass
+class ProvisionResult:
+    customer_id: str
+    nuban: str | None
+    bank_name: str | None
+
+
+async def provision_meroe_customer(user) -> ProvisionResult | None:
     """
     Called once at Zola registration. Creates a Meroe customer + virtual account.
-    Returns the Meroe customer UUID, or None if provisioning fails (non-blocking for demo).
+    Returns a ProvisionResult with customer_id, nuban, and bank_name — or None on failure.
     """
     # externalRef must be unique per app — we use Zola's user id
     payload = {
@@ -27,16 +35,19 @@ async def provision_meroe_customer(user) -> str | None:
     try:
         data = await meroe_post("/v1/customers", payload)
         customer_id = data.get("id")
+        va = data.get("virtualAccount") or {}
+        nuban = va.get("accountNumber")
+        bank_name = va.get("bankName")
         logger.info(
             "Successfully provisioned Meroe customer for Zola user %s (email: %s). "
-            "Meroe customer ID: %s",
+            "Meroe customer ID: %s, NUBAN: %s",
             user.id,
             user.email,
             customer_id,
+            nuban,
         )
-        return customer_id
+        return ProvisionResult(customer_id=customer_id, nuban=nuban, bank_name=bank_name)
     except Exception as exc:
-        # Log the full error details for debugging
         logger.error(
             "Meroe customer provisioning failed for Zola user %s (email: %s). "
             "Error: %s. Payload: externalRef=%s, fullName=%s, email=%s",
@@ -47,7 +58,6 @@ async def provision_meroe_customer(user) -> str | None:
             payload.get("fullName"),
             payload.get("email"),
         )
-        # In a demo context we log and continue — user can still log in
         return None
 
 

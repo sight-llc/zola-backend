@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     meroe_base_url: str = "http://localhost:8080"
     meroe_api_key: str = ""  # set via env: MEROE_API_KEY
 
+    # Gmail (notification emails)
+    gmail_sender: str = ""
+    gmail_app_password: str = ""
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

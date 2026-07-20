@@ -73,7 +73,6 @@ async def submit_bvn(
             "limits": _tier_limits(2),
         }
     except HTTPException as exc:
-        # Log the Meroe error details
         logger.error(
             "Meroe KYC update failed for Zola user %s (Meroe customer %s). "
             "HTTPException: status_code=%s, detail=%s",

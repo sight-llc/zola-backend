@@ -24,10 +24,20 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # tighten in prod
-    allow_credentials=True,
+    allow_origins=[
+        "*",
+        "http://10.0.2.2:8080",
+        "http://10.0.2.2:8000",
+        "http://10.0.2.2:5173",
+        "10.0.2.2:5173",
+        "http://localhost:8080",
+        "http://localhost:3000",
+        "http://localhost:5173",
+    ],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 app.include_router(auth.router, prefix="/v1/auth", tags=["Auth"])
